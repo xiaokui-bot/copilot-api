@@ -37,7 +37,7 @@ export const setupCopilotToken = async () => {
       }
     } catch (error) {
       consola.error("Failed to refresh Copilot token:", error)
-      throw error
+      consola.warn("Will retry on next refresh interval, keeping existing token.")
     }
   }, refreshInterval)
 }
