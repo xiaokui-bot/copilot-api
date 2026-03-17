@@ -1,11 +1,11 @@
-import { describe, test, expect } from "bun:test"
+import assert from "node:assert/strict"
+import { describe, it } from "node:test"
 import { z } from "zod"
 
 import type { AnthropicMessagesPayload } from "~/routes/messages/anthropic-types"
 
 import { translateToOpenAI } from "../src/routes/messages/non-stream-translation"
 
-// Zod schema for a single message in the chat completion request.
 const messageSchema = z.object({
   role: z.enum([
     "system",
@@ -21,8 +21,6 @@ const messageSchema = z.object({
   tool_call_id: z.string().optional(),
 })
 
-// Zod schema for the entire chat completion request payload.
-// This is derived from the openapi.documented.yml specification.
 const chatCompletionRequestSchema = z.object({
   messages: z.array(messageSchema).min(1, "Messages array cannot be empty."),
   model: z.string(),
@@ -40,10 +38,7 @@ const chatCompletionRequestSchema = z.object({
     })
     .optional(),
   seed: z.number().int().optional().nullable(),
-  stop: z
-    .union([z.string(), z.array(z.string())])
-    .optional()
-    .nullable(),
+  stop: z.union([z.string(), z.array(z.string())]).optional().nullable(),
   stream: z.boolean().optional().nullable(),
   temperature: z.number().min(0).max(2).optional().nullable(),
   top_p: z.number().min(0).max(1).optional().nullable(),
@@ -52,18 +47,13 @@ const chatCompletionRequestSchema = z.object({
   user: z.string().optional(),
 })
 
-/**
- * Validates if a request payload conforms to the OpenAI Chat Completion v1 shape using Zod.
- * @param payload The request payload to validate.
- * @returns True if the payload is valid, false otherwise.
- */
 function isValidChatCompletionRequest(payload: unknown): boolean {
   const result = chatCompletionRequestSchema.safeParse(payload)
   return result.success
 }
 
 describe("Anthropic to OpenAI translation logic", () => {
-  test("should translate minimal Anthropic payload to valid OpenAI payload", () => {
+  it("should translate minimal Anthropic payload to valid OpenAI payload", () => {
     const anthropicPayload: AnthropicMessagesPayload = {
       model: "gpt-4o",
       messages: [{ role: "user", content: "Hello!" }],
@@ -71,10 +61,10 @@ describe("Anthropic to OpenAI translation logic", () => {
     }
 
     const openAIPayload = translateToOpenAI(anthropicPayload)
-    expect(isValidChatCompletionRequest(openAIPayload)).toBe(true)
+    assert.equal(isValidChatCompletionRequest(openAIPayload), true)
   })
 
-  test("should translate comprehensive Anthropic payload to valid OpenAI payload", () => {
+  it("should translate comprehensive Anthropic payload to valid OpenAI payload", () => {
     const anthropicPayload: AnthropicMessagesPayload = {
       model: "gpt-4o",
       system: "You are a helpful assistant.",
@@ -100,32 +90,32 @@ describe("Anthropic to OpenAI translation logic", () => {
       tool_choice: { type: "auto" },
     }
     const openAIPayload = translateToOpenAI(anthropicPayload)
-    expect(isValidChatCompletionRequest(openAIPayload)).toBe(true)
+    assert.equal(isValidChatCompletionRequest(openAIPayload), true)
   })
 
-  test("should handle missing fields gracefully", () => {
+  it("should handle missing fields gracefully", () => {
     const anthropicPayload: AnthropicMessagesPayload = {
       model: "gpt-4o",
       messages: [{ role: "user", content: "Hello!" }],
       max_tokens: 0,
     }
     const openAIPayload = translateToOpenAI(anthropicPayload)
-    expect(isValidChatCompletionRequest(openAIPayload)).toBe(true)
+    assert.equal(isValidChatCompletionRequest(openAIPayload), true)
   })
 
-  test("should handle invalid types in Anthropic payload", () => {
+  it("should handle invalid types in Anthropic payload", () => {
     const anthropicPayload = {
       model: "gpt-4o",
       messages: [{ role: "user", content: "Hello!" }],
-      temperature: "hot", // Should be a number
+      temperature: "hot",
     }
-    // @ts-expect-error intended to be invalid
-    const openAIPayload = translateToOpenAI(anthropicPayload)
-    // Should fail validation
-    expect(isValidChatCompletionRequest(openAIPayload)).toBe(false)
+    const openAIPayload = translateToOpenAI(
+      anthropicPayload as unknown as AnthropicMessagesPayload,
+    )
+    assert.equal(isValidChatCompletionRequest(openAIPayload), false)
   })
 
-  test("should handle thinking blocks in assistant messages", () => {
+  it("should handle thinking blocks in assistant messages", () => {
     const anthropicPayload: AnthropicMessagesPayload = {
       model: "claude-3-5-sonnet-20241022",
       messages: [
@@ -144,19 +134,20 @@ describe("Anthropic to OpenAI translation logic", () => {
       max_tokens: 100,
     }
     const openAIPayload = translateToOpenAI(anthropicPayload)
-    expect(isValidChatCompletionRequest(openAIPayload)).toBe(true)
+    assert.equal(isValidChatCompletionRequest(openAIPayload), true)
 
-    // Check that thinking content is combined with text content
     const assistantMessage = openAIPayload.messages.find(
       (m) => m.role === "assistant",
     )
-    expect(assistantMessage?.content).toContain(
-      "Let me think about this simple math problem...",
+    assert.ok(typeof assistantMessage?.content === "string")
+    assert.match(
+      assistantMessage.content,
+      /Let me think about this simple math problem.../,
     )
-    expect(assistantMessage?.content).toContain("2+2 equals 4.")
+    assert.match(assistantMessage.content, /2\+2 equals 4\./)
   })
 
-  test("should handle thinking blocks with tool calls", () => {
+  it("should handle thinking blocks with tool calls", () => {
     const anthropicPayload: AnthropicMessagesPayload = {
       model: "claude-3-5-sonnet-20241022",
       messages: [
@@ -182,33 +173,29 @@ describe("Anthropic to OpenAI translation logic", () => {
       max_tokens: 100,
     }
     const openAIPayload = translateToOpenAI(anthropicPayload)
-    expect(isValidChatCompletionRequest(openAIPayload)).toBe(true)
+    assert.equal(isValidChatCompletionRequest(openAIPayload), true)
 
-    // Check that thinking content is included in the message content
     const assistantMessage = openAIPayload.messages.find(
       (m) => m.role === "assistant",
     )
-    expect(assistantMessage?.content).toContain(
-      "I need to call the weather API",
-    )
-    expect(assistantMessage?.content).toContain(
-      "I'll check the weather for you.",
-    )
-    expect(assistantMessage?.tool_calls).toHaveLength(1)
-    expect(assistantMessage?.tool_calls?.[0].function.name).toBe("get_weather")
+    assert.ok(typeof assistantMessage?.content === "string")
+    assert.match(assistantMessage.content, /I need to call the weather API/)
+    assert.match(assistantMessage.content, /I'll check the weather for you\./)
+    assert.equal(assistantMessage?.tool_calls?.length, 1)
+    assert.equal(assistantMessage?.tool_calls?.[0].function.name, "get_weather")
   })
 })
 
 describe("OpenAI Chat Completion v1 Request Payload Validation with Zod", () => {
-  test("should return true for a minimal valid request payload", () => {
+  it("should return true for a minimal valid request payload", () => {
     const validPayload = {
       model: "gpt-4o",
       messages: [{ role: "user", content: "Hello!" }],
     }
-    expect(isValidChatCompletionRequest(validPayload)).toBe(true)
+    assert.equal(isValidChatCompletionRequest(validPayload), true)
   })
 
-  test("should return true for a comprehensive valid request payload", () => {
+  it("should return true for a comprehensive valid request payload", () => {
     const validPayload = {
       model: "gpt-4o",
       messages: [
@@ -223,91 +210,90 @@ describe("OpenAI Chat Completion v1 Request Payload Validation with Zod", () => 
       stream: false,
       n: 1,
     }
-    expect(isValidChatCompletionRequest(validPayload)).toBe(true)
+    assert.equal(isValidChatCompletionRequest(validPayload), true)
   })
 
-  test('should return false if the "model" field is missing', () => {
+  it('should return false if the "model" field is missing', () => {
     const invalidPayload = {
       messages: [{ role: "user", content: "Hello!" }],
     }
-    expect(isValidChatCompletionRequest(invalidPayload)).toBe(false)
+    assert.equal(isValidChatCompletionRequest(invalidPayload), false)
   })
 
-  test('should return false if the "messages" field is missing', () => {
+  it('should return false if the "messages" field is missing', () => {
     const invalidPayload = {
       model: "gpt-4o",
     }
-    expect(isValidChatCompletionRequest(invalidPayload)).toBe(false)
+    assert.equal(isValidChatCompletionRequest(invalidPayload), false)
   })
 
-  test('should return false if the "messages" array is empty', () => {
+  it('should return false if the "messages" array is empty', () => {
     const invalidPayload = {
       model: "gpt-4o",
       messages: [],
     }
-    expect(isValidChatCompletionRequest(invalidPayload)).toBe(false)
+    assert.equal(isValidChatCompletionRequest(invalidPayload), false)
   })
 
-  test('should return false if "model" is not a string', () => {
+  it('should return false if "model" is not a string', () => {
     const invalidPayload = {
       model: 12345,
       messages: [{ role: "user", content: "Hello!" }],
     }
-    expect(isValidChatCompletionRequest(invalidPayload)).toBe(false)
+    assert.equal(isValidChatCompletionRequest(invalidPayload), false)
   })
 
-  test('should return false if "messages" is not an array', () => {
+  it('should return false if "messages" is not an array', () => {
     const invalidPayload = {
       model: "gpt-4o",
       messages: { role: "user", content: "Hello!" },
     }
-    expect(isValidChatCompletionRequest(invalidPayload)).toBe(false)
+    assert.equal(isValidChatCompletionRequest(invalidPayload), false)
   })
 
-  test('should return false if a message in the "messages" array is missing a "role"', () => {
+  it('should return false if a message in the "messages" array is missing a "role"', () => {
     const invalidPayload = {
       model: "gpt-4o",
       messages: [{ content: "Hello!" }],
     }
-    expect(isValidChatCompletionRequest(invalidPayload)).toBe(false)
+    assert.equal(isValidChatCompletionRequest(invalidPayload), false)
   })
 
-  test('should return false if a message in the "messages" array is missing "content"', () => {
+  it('should return false if a message in the "messages" array is missing "content"', () => {
     const invalidPayload = {
       model: "gpt-4o",
       messages: [{ role: "user" }],
     }
-    // Note: Zod considers 'undefined' as missing, so this will fail as expected.
     const result = chatCompletionRequestSchema.safeParse(invalidPayload)
-    expect(result.success).toBe(false)
+    assert.equal(result.success, false)
   })
 
-  test('should return false if a message has an invalid "role"', () => {
+  it('should return false if a message has an invalid "role"', () => {
     const invalidPayload = {
       model: "gpt-4o",
       messages: [{ role: "customer", content: "Hello!" }],
     }
-    expect(isValidChatCompletionRequest(invalidPayload)).toBe(false)
+    assert.equal(isValidChatCompletionRequest(invalidPayload), false)
   })
 
-  test("should return false if an optional field has an incorrect type", () => {
+  it("should return false if an optional field has an incorrect type", () => {
     const invalidPayload = {
       model: "gpt-4o",
       messages: [{ role: "user", content: "Hello!" }],
-      temperature: "hot", // Should be a number
+      temperature: "hot",
     }
-    expect(isValidChatCompletionRequest(invalidPayload)).toBe(false)
+    assert.equal(isValidChatCompletionRequest(invalidPayload), false)
   })
 
-  test("should return false for a completely empty object", () => {
+  it("should return false for a completely empty object", () => {
     const invalidPayload = {}
-    expect(isValidChatCompletionRequest(invalidPayload)).toBe(false)
+    assert.equal(isValidChatCompletionRequest(invalidPayload), false)
   })
 
-  test("should return false for null or non-object payloads", () => {
-    expect(isValidChatCompletionRequest(null)).toBe(false)
-    expect(isValidChatCompletionRequest(undefined)).toBe(false)
-    expect(isValidChatCompletionRequest("a string")).toBe(false)
-    expect(isValidChatCompletionRequest(123)).toBe(false)
+  it("should return false for null or non-object payloads", () => {
+    assert.equal(isValidChatCompletionRequest(null), false)
+    assert.equal(isValidChatCompletionRequest(undefined), false)
+    assert.equal(isValidChatCompletionRequest("a string"), false)
+    assert.equal(isValidChatCompletionRequest(123), false)
   })
 })

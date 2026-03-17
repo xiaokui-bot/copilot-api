@@ -41,11 +41,9 @@ async function getPackageVersion(): Promise<string> {
 }
 
 function getRuntimeInfo() {
-  const isBun = typeof Bun !== "undefined"
-
   return {
-    name: isBun ? "bun" : "node",
-    version: isBun ? Bun.version : process.version.slice(1),
+    name: "node",
+    version: process.version.slice(1),
     platform: os.platform(),
     arch: os.arch(),
   }

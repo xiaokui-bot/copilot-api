@@ -1,4 +1,5 @@
-import { describe, test, expect } from "bun:test"
+import assert from "node:assert/strict"
+import { describe, it } from "node:test"
 import { z } from "zod"
 
 import type {
@@ -43,11 +44,6 @@ const anthropicMessageResponseSchema = z.object({
   usage: anthropicUsageSchema,
 })
 
-/**
- * Validates if a response payload conforms to the Anthropic Message shape.
- * @param payload The response payload to validate.
- * @returns True if the payload is valid, false otherwise.
- */
 function isValidAnthropicResponse(payload: unknown): boolean {
   return anthropicMessageResponseSchema.safeParse(payload).success
 }
@@ -68,7 +64,7 @@ function isValidAnthropicStreamEvent(payload: unknown): boolean {
 }
 
 describe("OpenAI to Anthropic Non-Streaming Response Translation", () => {
-  test("should translate a simple text response correctly", () => {
+  it("should translate a simple text response correctly", () => {
     const openAIResponse: ChatCompletionResponse = {
       id: "chatcmpl-123",
       object: "chat.completion",
@@ -94,14 +90,14 @@ describe("OpenAI to Anthropic Non-Streaming Response Translation", () => {
 
     const anthropicResponse = translateToAnthropic(openAIResponse)
 
-    expect(isValidAnthropicResponse(anthropicResponse)).toBe(true)
-
-    expect(anthropicResponse.id).toBe("chatcmpl-123")
-    expect(anthropicResponse.stop_reason).toBe("end_turn")
-    expect(anthropicResponse.usage.input_tokens).toBe(9)
-    expect(anthropicResponse.content[0].type).toBe("text")
+    assert.equal(isValidAnthropicResponse(anthropicResponse), true)
+    assert.equal(anthropicResponse.id, "chatcmpl-123")
+    assert.equal(anthropicResponse.stop_reason, "end_turn")
+    assert.equal(anthropicResponse.usage.input_tokens, 9)
+    assert.equal(anthropicResponse.content[0].type, "text")
     if (anthropicResponse.content[0].type === "text") {
-      expect(anthropicResponse.content[0].text).toBe(
+      assert.equal(
+        anthropicResponse.content[0].text,
         "Hello! How can I help you today?",
       )
     } else {
@@ -109,7 +105,7 @@ describe("OpenAI to Anthropic Non-Streaming Response Translation", () => {
     }
   })
 
-  test("should translate a response with tool calls", () => {
+  it("should translate a response with tool calls", () => {
     const openAIResponse: ChatCompletionResponse = {
       id: "chatcmpl-456",
       object: "chat.completion",
@@ -145,14 +141,13 @@ describe("OpenAI to Anthropic Non-Streaming Response Translation", () => {
 
     const anthropicResponse = translateToAnthropic(openAIResponse)
 
-    expect(isValidAnthropicResponse(anthropicResponse)).toBe(true)
-
-    expect(anthropicResponse.stop_reason).toBe("tool_use")
-    expect(anthropicResponse.content[0].type).toBe("tool_use")
+    assert.equal(isValidAnthropicResponse(anthropicResponse), true)
+    assert.equal(anthropicResponse.stop_reason, "tool_use")
+    assert.equal(anthropicResponse.content[0].type, "tool_use")
     if (anthropicResponse.content[0].type === "tool_use") {
-      expect(anthropicResponse.content[0].id).toBe("call_abc")
-      expect(anthropicResponse.content[0].name).toBe("get_current_weather")
-      expect(anthropicResponse.content[0].input).toEqual({
+      assert.equal(anthropicResponse.content[0].id, "call_abc")
+      assert.equal(anthropicResponse.content[0].name, "get_current_weather")
+      assert.deepEqual(anthropicResponse.content[0].input, {
         location: "Boston, MA",
       })
     } else {
@@ -160,7 +155,7 @@ describe("OpenAI to Anthropic Non-Streaming Response Translation", () => {
     }
   })
 
-  test("should translate a response stopped due to length", () => {
+  it("should translate a response stopped due to length", () => {
     const openAIResponse: ChatCompletionResponse = {
       id: "chatcmpl-789",
       object: "chat.completion",
@@ -186,13 +181,13 @@ describe("OpenAI to Anthropic Non-Streaming Response Translation", () => {
 
     const anthropicResponse = translateToAnthropic(openAIResponse)
 
-    expect(isValidAnthropicResponse(anthropicResponse)).toBe(true)
-    expect(anthropicResponse.stop_reason).toBe("max_tokens")
+    assert.equal(isValidAnthropicResponse(anthropicResponse), true)
+    assert.equal(anthropicResponse.stop_reason, "max_tokens")
   })
 })
 
 describe("OpenAI to Anthropic Streaming Response Translation", () => {
-  test("should translate a simple text stream correctly", () => {
+  it("should translate a simple text stream correctly", () => {
     const openAIStream: Array<ChatCompletionChunk> = [
       {
         id: "cmpl-1",
@@ -258,11 +253,11 @@ describe("OpenAI to Anthropic Streaming Response Translation", () => {
     )
 
     for (const event of translatedStream) {
-      expect(isValidAnthropicStreamEvent(event)).toBe(true)
+      assert.equal(isValidAnthropicStreamEvent(event), true)
     }
   })
 
-  test("should translate a stream with tool calls", () => {
+  it("should translate a stream with tool calls", () => {
     const openAIStream: Array<ChatCompletionChunk> = [
       {
         id: "cmpl-2",
@@ -346,7 +341,6 @@ describe("OpenAI to Anthropic Streaming Response Translation", () => {
       },
     ]
 
-    // Streaming translation requires state
     const streamState: AnthropicStreamState = {
       messageStartSent: false,
       contentBlockIndex: 0,
@@ -357,9 +351,8 @@ describe("OpenAI to Anthropic Streaming Response Translation", () => {
       translateChunkToAnthropicEvents(chunk, streamState),
     )
 
-    // These tests will fail until the stub is implemented
     for (const event of translatedStream) {
-      expect(isValidAnthropicStreamEvent(event)).toBe(true)
+      assert.equal(isValidAnthropicStreamEvent(event), true)
     }
   })
 })

@@ -3,8 +3,6 @@ import { getProxyForUrl } from "proxy-from-env"
 import { Agent, ProxyAgent, setGlobalDispatcher, type Dispatcher } from "undici"
 
 export function initProxyFromEnv(): void {
-  if (typeof Bun !== "undefined") return
-
   try {
     const direct = new Agent()
     const proxies = new Map<string, ProxyAgent>()
