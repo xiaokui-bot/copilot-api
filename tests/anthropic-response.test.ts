@@ -63,7 +63,7 @@ function isValidAnthropicStreamEvent(payload: unknown): boolean {
   return anthropicStreamEventSchema.safeParse(payload).success
 }
 
-describe("OpenAI to Anthropic Non-Streaming Response Translation", () => {
+void describe("OpenAI to Anthropic Non-Streaming Response Translation", () => {
   it("should translate a simple text response correctly", () => {
     const openAIResponse: ChatCompletionResponse = {
       id: "chatcmpl-123",
@@ -94,15 +94,11 @@ describe("OpenAI to Anthropic Non-Streaming Response Translation", () => {
     assert.equal(anthropicResponse.id, "chatcmpl-123")
     assert.equal(anthropicResponse.stop_reason, "end_turn")
     assert.equal(anthropicResponse.usage.input_tokens, 9)
-    assert.equal(anthropicResponse.content[0].type, "text")
-    if (anthropicResponse.content[0].type === "text") {
-      assert.equal(
-        anthropicResponse.content[0].text,
-        "Hello! How can I help you today?",
-      )
-    } else {
+    const firstContent = anthropicResponse.content[0]
+    if (!firstContent || firstContent.type !== "text") {
       throw new Error("Expected text block")
     }
+    assert.equal(firstContent.text, "Hello! How can I help you today?")
   })
 
   it("should translate a response with tool calls", () => {
@@ -143,16 +139,15 @@ describe("OpenAI to Anthropic Non-Streaming Response Translation", () => {
 
     assert.equal(isValidAnthropicResponse(anthropicResponse), true)
     assert.equal(anthropicResponse.stop_reason, "tool_use")
-    assert.equal(anthropicResponse.content[0].type, "tool_use")
-    if (anthropicResponse.content[0].type === "tool_use") {
-      assert.equal(anthropicResponse.content[0].id, "call_abc")
-      assert.equal(anthropicResponse.content[0].name, "get_current_weather")
-      assert.deepEqual(anthropicResponse.content[0].input, {
-        location: "Boston, MA",
-      })
-    } else {
+    const firstContent = anthropicResponse.content[0]
+    if (!firstContent || firstContent.type !== "tool_use") {
       throw new Error("Expected tool_use block")
     }
+    assert.equal(firstContent.id, "call_abc")
+    assert.equal(firstContent.name, "get_current_weather")
+    assert.deepEqual(firstContent.input, {
+      location: "Boston, MA",
+    })
   })
 
   it("should translate a response stopped due to length", () => {
@@ -186,7 +181,7 @@ describe("OpenAI to Anthropic Non-Streaming Response Translation", () => {
   })
 })
 
-describe("OpenAI to Anthropic Streaming Response Translation", () => {
+void describe("OpenAI to Anthropic Streaming Response Translation", () => {
   it("should translate a simple text stream correctly", () => {
     const openAIStream: Array<ChatCompletionChunk> = [
       {

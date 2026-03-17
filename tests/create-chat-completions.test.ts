@@ -11,17 +11,19 @@ state.vsCodeVersion = "1.0.0"
 state.accountType = "individual"
 
 const fetchMock = mock.fn(
-  async (_url: string, opts: { headers: Record<string, string> }) => ({
-    ok: true,
-    json: async () => ({ id: "123", object: "chat.completion", choices: [] }),
-    headers: opts.headers,
-  }),
+  (_url: string, opts: { headers: Record<string, string> }) =>
+    Promise.resolve({
+      ok: true,
+      json: () =>
+        Promise.resolve({ id: "123", object: "chat.completion", choices: [] }),
+      headers: opts.headers,
+    }),
 )
 
 ;(globalThis as unknown as { fetch: typeof fetch }).fetch =
   fetchMock as unknown as typeof fetch
 
-describe("createChatCompletions", () => {
+void describe("createChatCompletions", () => {
   beforeEach(() => {
     fetchMock.mock.resetCalls()
   })

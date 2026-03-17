@@ -3,26 +3,26 @@
 ## Build, Lint, and Test Commands
 
 - **Build:**  
-  `bun run build` (uses tsup)
+  `npm run build`
 - **Dev:**  
-  `bun run dev`
+  `npm run dev`
 - **Lint:**  
-  `bun run lint` (uses @echristian/eslint-config)
+  `npm run lint`
 - **Lint & Fix staged files:**  
-  `bunx lint-staged`
+  `npx lint-staged`
 - **Test all:**  
-   `bun test`
+   `npm test`
 - **Test single file:**  
-   `bun test tests/claude-request.test.ts`
+   `node --import tsx --test tests/claude-request.test.ts`
 - **Start (prod):**  
-  `bun run start`
+  `npm run start`
 
 ## Code Style Guidelines
 
 - **Imports:**  
   Use ESNext syntax. Prefer absolute imports via `~/*` for `src/*` (see `tsconfig.json`).
 - **Formatting:**  
-  Follows Prettier (with `prettier-plugin-packagejson`). Run `bun run lint` to auto-fix.
+  Follows Prettier (with `prettier-plugin-packagejson`). Run `npm run lint -- --fix` to auto-fix.
 - **Types:**  
   Strict TypeScript (`strict: true`). Avoid `any`; use explicit types and interfaces.
 - **Naming:**  
@@ -36,7 +36,7 @@
 - **Modules:**  
   Use ESNext modules, no CommonJS.
 - **Testing:**  
-   Use Bun's built-in test runner. Place tests in `tests/`, name as `*.test.ts`.
+   Use Node's built-in test runner with `tsx`. Place tests in `tests/`, name as `*.test.ts`.
 - **Linting:**  
   Uses `@echristian/eslint-config` (see npm for details). Includes stylistic, unused imports, regex, and package.json rules.
 - **Paths:**  

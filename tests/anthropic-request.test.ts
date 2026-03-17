@@ -38,7 +38,10 @@ const chatCompletionRequestSchema = z.object({
     })
     .optional(),
   seed: z.number().int().optional().nullable(),
-  stop: z.union([z.string(), z.array(z.string())]).optional().nullable(),
+  stop: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .nullable(),
   stream: z.boolean().optional().nullable(),
   temperature: z.number().min(0).max(2).optional().nullable(),
   top_p: z.number().min(0).max(1).optional().nullable(),
@@ -52,7 +55,7 @@ function isValidChatCompletionRequest(payload: unknown): boolean {
   return result.success
 }
 
-describe("Anthropic to OpenAI translation logic", () => {
+void describe("Anthropic to OpenAI translation logic", () => {
   it("should translate minimal Anthropic payload to valid OpenAI payload", () => {
     const anthropicPayload: AnthropicMessagesPayload = {
       model: "gpt-4o",
@@ -181,12 +184,12 @@ describe("Anthropic to OpenAI translation logic", () => {
     assert.ok(typeof assistantMessage?.content === "string")
     assert.match(assistantMessage.content, /I need to call the weather API/)
     assert.match(assistantMessage.content, /I'll check the weather for you\./)
-    assert.equal(assistantMessage?.tool_calls?.length, 1)
-    assert.equal(assistantMessage?.tool_calls?.[0].function.name, "get_weather")
+    assert.equal(assistantMessage.tool_calls?.length, 1)
+    assert.equal(assistantMessage.tool_calls?.[0]?.function.name, "get_weather")
   })
 })
 
-describe("OpenAI Chat Completion v1 Request Payload Validation with Zod", () => {
+void describe("OpenAI Chat Completion v1 Request Payload Validation with Zod", () => {
   it("should return true for a minimal valid request payload", () => {
     const validPayload = {
       model: "gpt-4o",
