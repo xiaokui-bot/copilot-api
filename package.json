@@ -1,5 +1,5 @@
 {
-  "name": "@suxf/copilot-api",
+  "name": "@xiaokui/copilot-api",
   "version": "0.7.1",
   "description": "Turn GitHub Copilot into OpenAI/Anthropic API compatible server. Usable with Claude Code!",
   "keywords": [
@@ -16,7 +16,7 @@
   "author": "suxf",
   "type": "module",
   "bin": {
-    "copilot-api": "./dist/main.js"
+    "copilot-api": "dist/main.js"
   },
   "files": [
     "dist"
@@ -34,7 +34,8 @@
     "prepare": "simple-git-hooks",
     "release": "bumpp && npm publish --access public",
     "start": "NODE_ENV=production node ./dist/main.js",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "test": "node --import tsx --test tests/**/*.test.ts"
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
