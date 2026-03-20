@@ -15,8 +15,8 @@ import {
   type ChatCompletionsPayload,
 } from "~/services/copilot/create-chat-completions"
 
-const MAX_RETRIES = 10
-const RETRY_DELAY_MS = 3000
+const MAX_RETRIES = 3
+const RETRY_DELAY_MS = 30000
 
 // 不可重试的错误码（客户端问题，重试无意义）
 const NON_RETRYABLE_CODES = new Set([
@@ -41,8 +41,52 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+interface RetryContext {
+  /** 当前重试次数（从 0 开始） */
+  retryCount: number
+  /** 是否遇到过 429 限流 */
+  hitRateLimit: boolean
+  /** 最后一次 429 的 Retry-After 秒数（如有） */
+  retryAfterSeconds?: number
+}
+
+/** 检查 HTTPError 是否为不可重试的已知错误码，是则抛出；否则记录 429 信息 */
+async function handleHttpRetryError(opts: {
+  error: HTTPError
+  attempt: number
+  model: string
+  ctx: RetryContext
+}): Promise<void> {
+  const { error, attempt, model, ctx } = opts
+  const errorBody = (await error.response.clone().json()) as {
+    error?: { code?: string; message?: string }
+  }
+  const code = errorBody.error?.code ?? ""
+  if (NON_RETRYABLE_CODES.has(code)) {
+    consola.warn(`不可重试错误 (${code})，直接返回`)
+    throw error
+  }
+
+  if (error.response.status === 429) {
+    ctx.hitRateLimit = true
+    ctx.retryCount = attempt
+    const retryAfter = error.response.headers.get("retry-after")
+    if (retryAfter) {
+      ctx.retryAfterSeconds = Number.parseInt(retryAfter, 10) || undefined
+    }
+    consola.warn(
+      `⚠️ 上游返回 429 限流（第 ${attempt}/${MAX_RETRIES} 次）`
+        + (ctx.retryAfterSeconds ?
+          `，Retry-After: ${ctx.retryAfterSeconds}s`
+        : "")
+        + `，模型: ${model}`,
+    )
+  }
+}
+
 async function createChatCompletionsWithRetry(
   payload: ChatCompletionsPayload,
+  ctx: RetryContext = { retryCount: 0, hitRateLimit: false },
 ): ReturnType<typeof createChatCompletions> {
   let lastError: unknown
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -51,16 +95,13 @@ async function createChatCompletionsWithRetry(
     } catch (error) {
       lastError = error
 
-      // 检查是否为不可重试的已知错误码
       if (error instanceof HTTPError) {
-        const errorBody = (await error.response.clone().json()) as {
-          error?: { code?: string }
-        }
-        const code = errorBody.error?.code ?? ""
-        if (NON_RETRYABLE_CODES.has(code)) {
-          consola.warn(`不可重试错误 (${code})，直接返回`)
-          throw error
-        }
+        await handleHttpRetryError({
+          error,
+          attempt,
+          model: payload.model,
+          ctx,
+        })
       }
 
       if (!isRetryable(error)) {
@@ -69,11 +110,13 @@ async function createChatCompletionsWithRetry(
       }
 
       if (attempt < MAX_RETRIES) {
+        const waitMs =
+          ctx.retryAfterSeconds ? ctx.retryAfterSeconds * 1000 : RETRY_DELAY_MS
         consola.warn(
-          `请求失败（第 ${attempt}/${MAX_RETRIES} 次），${RETRY_DELAY_MS / 1000}s 后重试...`,
+          `请求失败（第 ${attempt}/${MAX_RETRIES} 次），${waitMs / 1000}s 后重试...`,
           error,
         )
-        await sleep(RETRY_DELAY_MS)
+        await sleep(waitMs)
       } else {
         consola.error(`已重试 ${MAX_RETRIES} 次，全部失败，放弃。`)
       }
@@ -115,7 +158,36 @@ export async function handleCompletion(c: Context) {
     consola.debug("Set max_tokens to:", JSON.stringify(payload.max_tokens))
   }
 
-  const response = await createChatCompletionsWithRetry(payload)
+  const retryCtx: RetryContext = { retryCount: 0, hitRateLimit: false }
+
+  let response: Awaited<ReturnType<typeof createChatCompletions>>
+  try {
+    response = await createChatCompletionsWithRetry(payload, retryCtx)
+  } catch (error) {
+    // 429 限流最终失败 → 返回明确的限流错误信息
+    if (error instanceof HTTPError && error.response.status === 429) {
+      const errorBody = await error.response
+        .clone()
+        .text()
+        .catch(() => "")
+      consola.error(
+        `🚫 模型 ${payload.model} 频率受限，重试 ${retryCtx.retryCount} 次后仍失败。`
+          + ` 上游响应: ${errorBody}`,
+      )
+      return c.json(
+        {
+          error: {
+            message: `Rate limited by upstream (model: ${payload.model}). Retried ${retryCtx.retryCount} times over ~${retryCtx.retryCount * (retryCtx.retryAfterSeconds || RETRY_DELAY_MS / 1000)}s. Please wait and try again.`,
+            type: "rate_limit_error",
+            code: "rate_limit_exceeded",
+            param: payload.model,
+          },
+        },
+        429,
+      )
+    }
+    throw error
+  }
 
   if (isNonStreaming(response)) {
     consola.debug("Non-streaming response:", JSON.stringify(response))
