@@ -16,12 +16,25 @@ export interface ResponsesPayload {
   [key: string]: unknown
 }
 
+function isAgentInitiated(input: unknown): boolean {
+  if (!Array.isArray(input)) return false
+  return input.some(
+    (item: unknown) =>
+      (typeof item === "object"
+        && item !== null
+        && "role" in item
+        && (item as { role?: string }).role === "assistant")
+      || (item as { role?: string }).role === "tool"
+      || (item as { role?: string }).role === "function_call_output",
+  )
+}
+
 export const createResponses = async (payload: ResponsesPayload) => {
   if (!state.copilotToken) throw new Error("Copilot token not found")
 
   const headers: Record<string, string> = {
     ...copilotHeaders(state, false),
-    "X-Initiator": "user",
+    "X-Initiator": isAgentInitiated(payload.input) ? "agent" : "user",
   }
 
   const url = `${copilotBaseUrl(state)}/responses`
@@ -34,7 +47,11 @@ export const createResponses = async (payload: ResponsesPayload) => {
   })
 
   if (!response.ok) {
-    consola.error("Failed to create responses", response.status, response.statusText)
+    consola.error(
+      "Failed to create responses",
+      response.status,
+      response.statusText,
+    )
     throw new HTTPError("Failed to create responses", response)
   }
 
