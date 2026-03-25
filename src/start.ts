@@ -25,6 +25,7 @@ interface RunServerOptions {
   claudeCode: boolean
   showToken: boolean
   proxyEnv: boolean
+  allowGpt5: boolean
 }
 
 export async function runServer(options: RunServerOptions): Promise<void> {
@@ -46,6 +47,7 @@ export async function runServer(options: RunServerOptions): Promise<void> {
   state.rateLimitSeconds = options.rateLimit
   state.rateLimitWait = options.rateLimitWait
   state.showToken = options.showToken
+  state.allowGpt5 = options.allowGpt5
 
   await ensurePaths()
   await cacheVSCodeVersion()
@@ -184,6 +186,11 @@ export const start = defineCommand({
       default: false,
       description: "Initialize proxy from environment variables",
     },
+    "allow-gpt5": {
+      type: "boolean",
+      default: false,
+      description: "Allow usage of GPT-5 series models (default: false)",
+    },
   },
   run({ args }) {
     const rateLimitRaw = args["rate-limit"]
@@ -202,6 +209,7 @@ export const start = defineCommand({
       claudeCode: args["claude-code"],
       showToken: args["show-token"],
       proxyEnv: args["proxy-env"],
+      allowGpt5: args["allow-gpt5"],
     })
   },
 })

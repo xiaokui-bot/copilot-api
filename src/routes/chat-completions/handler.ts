@@ -131,6 +131,23 @@ export async function handleCompletion(c: Context) {
   let payload = await c.req.json<ChatCompletionsPayload>()
   consola.debug("Request payload:", JSON.stringify(payload).slice(-400))
 
+  // Check if GPT-5 models are allowed
+  const isGpt5Model = payload.model.startsWith("gpt-5")
+  if (isGpt5Model && !state.allowGpt5) {
+    return c.json(
+      {
+        error: {
+          message:
+            "GPT-5 series models are disabled. Enable them with --allow-gpt5 flag.",
+          type: "invalid_request_error",
+          param: "model",
+          code: "model_not_allowed",
+        },
+      },
+      { status: 403 },
+    )
+  }
+
   // Find the selected model
   const selectedModel = state.models?.data.find(
     (model) => model.id === payload.model,

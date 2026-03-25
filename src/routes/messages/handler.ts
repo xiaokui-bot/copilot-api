@@ -143,6 +143,23 @@ export async function handleCompletion(c: Context) {
     JSON.stringify(openAIPayload),
   )
 
+  // Check if GPT-5 models are allowed
+  const isGpt5Model = openAIPayload.model.startsWith("gpt-5")
+  if (isGpt5Model && !state.allowGpt5) {
+    return c.json(
+      {
+        error: {
+          message:
+            "GPT-5 series models are disabled. Enable them with --allow-gpt5 flag.",
+          type: "invalid_request_error",
+          param: "model",
+          code: "model_not_allowed",
+        },
+      },
+      { status: 403 },
+    )
+  }
+
   if (state.manualApprove) {
     await awaitApproval()
   }
